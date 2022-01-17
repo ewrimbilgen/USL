@@ -1,2 +1,2 @@
 # USL
-Project fro USL (3 parts)
+Project for USL term assessment (3 parts)
