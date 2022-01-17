@@ -1,0 +1,355 @@
+---
+title: 'USL Project/ Clustering-PCA-Market Analysis/ Part 1: Clustering'
+author: "Evrim Bilgen"
+date: "12/16/2021"
+output: html_document
+---
+
+<style>
+#TOC
+{
+color:#00008B;
+font-family: Calibri;
+font-size: 16px;
+border-color: #708090;
+}
+
+h1.title {
+  color: #000000;
+  background-color: #F5F5F5;
+  opacity: 0.6;
+  font-family: Calibri;
+  font-size: 25px;
+}
+h4.author{
+color:#000000;
+font-family: Calibri;
+background-color: #F5F5F5;
+}
+body {
+color: #000000;
+font-family: Calibri;
+background-color: #F5F5F5;
+}
+  pre{
+     color: #000000;
+      background-color: #F8F8FF;
+     }
+</style>
+
+# **UNSUPERVISED LEARNING** 
+
+## **Content**{-}
+
+This notebook contains these subjects;
+
+
+* Unsupervised Learning with Clustering
+* Dimensionality reduction &Principal component analysis (PCA)
+* Market basket analysis 
+
+## **Introduction to dataset**
+
+In this section, I will demonstrate an unsupervised learning analysis using xxx from yyy. The analysis includes clustering using K-means algorithm 
+
+
+## **Data Analysis** 
+### Import Packages
+
+```{r }
+
+library(tidyverse)
+library(dplyr)
+library(ggExtra)
+library(DT)
+library(cluster)
+library(gridExtra)
+library(grid)
+library(plotly)
+library(corrgram)
+library(wordcloud)
+library(wordcloud2)
+library(tm)
+library(tmap)
+library(magrittr)
+library(data.table)
+library(corpus)
+library(corrplot)
+library(ggplot2); theme_set(theme_bw())
+library(skmeans)
+library(tidyverse)  # data manipulation
+library(cluster)    # clustering algorithms
+library(factoextra) # clustering algorithms & visualization
+library(GGally)
+library(plotly)
+
+
+```
+
+### Read Data
+
+```{r }
+
+     df = read.csv("/Users/ewrimmm/Desktop/R exercises/USL_21/IMDB.csv") 
+
+     attach(df)
+
+     summary(df)
+
+     glimpse(df)
+
+```
+
+Clearing N/A Values:
+
+```{r }
+cat("There are", sum(is.na(df)), "N/A values.")
+
+df <- df %>% mutate(across(everything(), .fns = ~replace_na(.,0))) 
+
+```
+
+Check out the result:
+```{r }
+df%>%summarise_all(funs(n_distinct))
+```
+
+Also we look at the structure of the data:
+
+```{r }
+str(df)
+```
+Some of variables are characters and others are numerical.
+
+
+### Data Wrangling & Cleaning $ Fixing
+```{r }
+colnames(df)
+
+unique(df$name)
+
+unique(df$rating)
+
+df <- df[!df$rating %in% c("Not Rated", "Unrated"), ]
+
+
+```
+
+### Data & Cluster Analysis
+
+Visualization of variables
+
+```{r }
+df %>%
+  keep(is.numeric) %>%                     
+  gather() %>%                            
+  ggplot(aes(value)) +                     
+  geom_histogram(fill="green", colour="black") +
+  facet_wrap(~ key, scales = "free") +   # In separate panels
+  geom_density() +
+  labs(x="Values", y="Frequency")
+
+
+```
+
+Trying to visualize the  numeric variables:
+
+```{r }
+df %>%
+  keep(is.numeric) %>%                     
+  gather() %>%                            
+  ggplot(aes(value)) +                     
+  geom_histogram(fill="green", colour="black") +
+  facet_wrap(~ key, scales = "free") +   # In separate panels
+  geom_density() +
+  labs(x="Values", y="Frequency")
+```
+
+```{r }
+df_numericVars <- which(sapply(df, is.numeric))
+df_numericVarNames <- names(df_numericVars)
+```
+
+Then we have
+```{r }
+df_numericVars <- which(sapply(df, is.numeric))
+df_numericVarNames <- names(df_numericVars)
+
+paste("There are ", length(df_numericVars) ," numeric variable in datasets")
+
+print(df_numericVarNames)
+
+```
+
+Lets plot them all!
+```{r }
+ggplot(df, aes(genre, fill = genre)) + geom_bar() + theme_classic()
+
+```
+
+Interesting! Action, comedy and drama genres are leading the leauge.
+
+See the whole picture:
+```{r }
+df %>% 
+  ggplot(aes(score, fill = genre)) +
+  geom_histogram(aes(y=..density..), alpha= .35, 
+                 position="identity", show.legend = F) +
+  geom_density(aes(colour = genre), 
+               stat = "density", alpha = .3,
+               show.legend = F) +
+  facet_wrap(~genre, scales = "free")
+
+```
+
+Lets dig deeper to find a relationship:
+
+```{r, eval = F}
+th1<- theme_bw()+theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), 
+                       legend.position="top")
+
+
+th2<- theme_bw()+theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), 
+                       legend.position="none")
+
+
+plot_grid(ggplot(df, aes(budget, gross)) + 
+            geom_point(alpha = 0.4) + geom_smooth() + scale_x_log10()+th1,
+          ggplot(df, aes(gross, runtime)) + 
+            geom_point(alpha = 0.4) + geom_smooth() + scale_x_log10()+th1,
+          ggplot(df, aes(gross, score)) + 
+            geom_point(alpha = 0.4) + geom_smooth() + scale_x_log10()+th1,
+          ggplot(df, aes(budget, score)) + 
+            geom_point(alpha = 0.4) + geom_smooth() + scale_x_log10()+th2,
+          ggplot(df, aes(budget, runtime)) + 
+            geom_point(alpha = 0.4) + geom_smooth() + scale_x_log10()+th2,
+          align = "h" )
+
+
+```
+
+The most powerful plot is the first one which means the higher the budget, the higher the amount grossed.
+It also followed by gross-score couple. So we can use these two variables for k-means later on.
+
+
+Can The score variable would be a good indicator of the targeted genres?
+
+```{r }
+  summary(score)
+ggplot(as.data.frame(score), aes(y = score)) + geom_boxplot(fill='#F8766D')
+
+```
+
+
+```{r }
+ggplot(df, aes( x = score, fill = genre)) + geom_density(alpha = 0.4)
+
+```
+It is quite interesting that seeing the music genre is strong among others.
+
+
+Go back to our first related couple(gross & budget)
+```{r }
+
+rel_1 <- df %>% group_by(year) %>% 
+  summarise(avg_budget = mean(budget, na.rm = TRUE),
+            avg_gross = mean(gross, na.rm = TRUE)) %>%
+  pivot_longer(avg_budget:avg_gross, names_to = "class") 
+
+rel_1$class2 <- factor(rel_1$class, levels = c("avg_gross", "avg_budget"))
+
+rel_1 %>% ggplot() + 
+  geom_area(aes(year, value, fill = class2)) + 
+  scale_fill_discrete(name = "", labels = c("Gross", "Budget"))
+
+rm(rel_1)
+```
+
+So we can be sure that throughout the years, both are increasing but mostly gross is dominating
+
+
+```{r }
+
+p1 <- ggplot(as.data.frame(gross), aes(y = gross)) + geom_boxplot(fill='#F8766D') + ylim(c(1,1500))
+p2 <- ggplot(as.data.frame(budget), aes(y = budget)) + geom_boxplot(fill='#00BFC4') + ylim(c(1,150000))
+grid.arrange(p1, p2, ncol = 2)
+```
+
+
+### K-Means
+
+My hypothesis is here finding and  answer that using by k-means is that there is an bond that movies can be grouped (clustered) according to their budget given their gross. 
+So the null hypothesis of this will be the opposite which means no clusters between these features
+
+```{r }
+
+Kdata <- df[,c(12,13)]
+
+```
+
+using Elbow approach for K estimation
+
+```{r } 
+
+tot.withinss <- vector("numeric", length = 10)
+for (i in 1:10){
+  kDet <- kmeans(Kdata, i)
+  tot.withinss[i] <- kDet$tot.withinss
+}
+
+```
+
+
+
+
+```{r } 
+
+ggplot(as.data.frame(tot.withinss), aes(x = seq(1,10), y = tot.withinss)) + 
+  geom_point(col = "#F8766D") +    
+  geom_line(col = "#F8766D") + 
+  theme(axis.title.x.bottom = element_blank()) +
+  ylab("Within-cluster Sum of Squares") +
+  xlab("Number of Clusters") +
+  ggtitle("Elbow K Estimation")
+```
+Seeing the plot, there is reasonable point for the K value which would be k=5
+
+
+
+So we are going to cluster the data by 5
+
+```{r }
+df_Clusters <- kmeans(Kdata, 5)
+df_Clusters
+```
+
+Then visualize the clusters
+```{r }
+
+ggplot(Kdata, aes(x = gross, y = budget)) + 
+  geom_point(stat = "identity", aes(color = as.factor(df_Clusters$cluster))) +
+  scale_color_discrete(name=" ",
+                       breaks=c("1", "2", "3", "4", "5"),
+                       labels=c("Group 1", "Group 2", "Group 3", "Group 4", "Group 5")) +
+  ggtitle("Movie segmentation", subtitle = "K-means Clustering")
+
+```
+
+### Conclusion
+
+Speaking about our groups, we can interpret this result such as;
+
+ * Group 1: Movies with medium  budget and medium gross
+ * Group 2: Movies with low budget and high gross
+ * Group 3: Movies with low budget and low gross
+ * Group 4: Movies with medium budget and low gross
+ * Group 5: Movies with low to medium budget and low gross
+ 
+ 
+## Referances
+
+ * https://www.datacamp.com/
+ * Clustering Analysis in R in R Youtube by Hefin Rhys
+ * kaggle
+ * https://stackoverflow.com/
+ * https://statsandr.com/blog/clustering-analysis-k-means-and-hierarchical-clustering-by-hand-and-in-r/
