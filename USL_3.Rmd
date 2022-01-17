@@ -1,0 +1,179 @@
+---
+title: "USL Part 3: Market Basket Analysis  "
+author: "Evrim Bilgen"
+date: "12/17/2021"
+output: html_document
+---
+<style>
+#TOC
+{
+color:#00008B;
+font-family: Calibri;
+font-size: 16px;
+border-color: #708090;
+}
+
+h1.title {
+  color: #000000;
+  background-color: #F5F5F5;
+  opacity: 0.6;
+  font-family: Calibri;
+  font-size: 25px;
+}
+h4.author{
+color:#000000;
+font-family: Calibri;
+background-color: #F5F5F5;
+}
+body {
+color: #000000;
+font-family: Calibri;
+background-color: #F5F5F5;
+}
+  pre{
+     color: #000000;
+      background-color: #F8F8FF;
+     }
+</style>
+
+# **Market Basket Analysis /Association Rules** 
+
+## Our packages
+
+
+```{r }
+library(arules)
+library(arulesViz)
+library(datasets)
+library(tidyverse)
+library(plyr)
+library(ggplot2)
+library(knitr)
+library(lubridate)
+library(RColorBrewer)
+library(tibble)
+
+```
+
+
+## Import the dataset & Convert it
+```{r }
+data <- read.csv('/Users/ewrimmm/Desktop/R exercises/USL_21/Grocery.csv')
+
+
+
+
+```
+
+
+## Data cleaning and exploration
+```{r }
+glimpse(data)
+
+head(data)
+
+
+```
+
+```{r }
+sum(is.na(data))
+
+```
+
+```{r }
+
+summary(data)
+```
+
+## Convert the data
+```{r }
+data = read.transactions('/Users/ewrimmm/Desktop/R exercises/USL_21/Grocery.csv', sep = ',', rm.duplicates = TRUE)
+```
+
+Lets see the top 20 products that sold in the dataset
+
+```{r }
+itemFrequencyPlot(data,topN=20,type="absolute",col=brewer.pal(8,'Pastel2'), main="Absolute Product Frequency Plot")
+```
+
+```{r }
+itemFrequencyPlot(data,topN=20,type="relative",col=brewer.pal(8,'Pastel1'), main="Relative Product Frequency Plot")
+```
+
+First we go with the numeric frequencies showed how independence from each others by using absolute type.
+Then we choose the relative type to show these products appeared.
+
+
+## Apriori Algorithm
+
+What is Apriori Algorithm?
+
+*''Apriori is an algorithm for frequent item set mining and association rule learning over relational databases. It proceeds by identifying the frequent individual items in the database and extending them to larger and larger item sets as long as those item sets appear sufficiently often in the database.''*
+
+Now it's time to setting the rules. I am going to do these three steps;
+
+* the minimum support to 0.001
+* the minimum confidence of 0.8
+* then interpret the summary of rules
+
+# Min Support as 0.001, confidence as 0.8.
+
+```{r }
+myrules <- apriori(data, parameter = list(supp=0.001, conf=0.8,maxlen=10))
+
+
+
+```
+
+
+We have 74 rules and most of rules are 4 items long.
+
+```{r }
+summary(myrules)
+
+```
+
+Our top 20 output will be sorted by confidence.
+
+So we can see that with 100% confidence, the customer bought french fries,mushroom cream sauce,pasta also bought escalope
+And it is followed by the rest three rows respectively with %100 confidence which means the most likely rules.
+```{r }
+inspect(sort(myrules,by='confidence', decreasing=TRUE)[1:20])
+
+
+```
+
+## Visualizing the Association Rules
+
+```{r }
+
+plot(myrules, jitter = 0)
+
+```
+
+Lets see the top 5 rules 
+```{r }
+plot(myrules, method = "grouped", control = list(k = 5))
+```
+
+And the graph of our first 20 rules
+```{r }
+plot(myrules[1:20], method="graph")
+
+```
+
+If we set another subrules with different parametres for having another relevant- likely rules(for redundancy) and plot it using two-key plot:
+```{r }
+mysubrules <- apriori(data, parameter = list(minlen=3, sup = 0.001, conf = 0.4))
+
+plot(mysubrules,method="two-key plot")
+
+```
+So we basically analysed the market basket analysis with Apriori algorithm. 
+
+## Referances
+
+ * https://www.datacamp.com/community/tutorials/market-basket-analysis-r
+ * https://towardsdatascience.com/a-gentle-introduction-on-market-basket-analysis-association-rules-fa4b986a40ce
+ * kaggle
+ * https://stackoverflow.com/

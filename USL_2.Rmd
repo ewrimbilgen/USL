@@ -1,0 +1,344 @@
+---
+title: "USL Part 2: PCA"
+author: "Evrim Bilgen"
+date: "12/17/2021"
+output: html_document
+---
+<style>
+#TOC
+{
+color:#00008B;
+font-family: Calibri;
+font-size: 16px;
+border-color: #708090;
+}
+
+h1.title {
+  color: #000000;
+  background-color: #F5F5F5;
+  opacity: 0.6;
+  font-family: Calibri;
+  font-size: 25px;
+}
+h4.author{
+color:#000000;
+font-family: Calibri;
+background-color: #F5F5F5;
+}
+body {
+color: #000000;
+font-family: Calibri;
+background-color: #F5F5F5;
+}
+  pre{
+     color: #000000;
+      background-color: #F8F8FF;
+     }
+</style>
+
+# **PCA ANALYSIS** 
+
+## Our packages
+
+```{r }
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+library(gridExtra)
+library(pROC)
+library(MASS)
+library(caTools)
+library(caret)
+library(caretEnsemble)
+library(doMC)
+library(DataExplorer)
+
+
+
+```
+
+
+## Our Data & Cleaning & Manipulating (EDA)
+```{r }
+
+cardio = read.csv("/Users/ewrimmm/Desktop/R exercises/USL_21/cardio.csv") 
+
+
+
+```
+
+```{r include=FALSE}
+cardio <- cardio[, c('sex','target','slope','exang','restecg','fbs','cp','ca','thal','age','trestbps','chol','thalach','oldpeak')]
+```
+
+
+```{r }
+attach(cardio)
+
+glimpse(cardio)
+
+```
+
+
+Now, looking at out data's structure
+
+```{r }
+str(cardio)
+```
+
+Checking the missing values
+
+```{r }
+plot_missing(cardio)
+
+cat("There are", sum(is.na(cardio)), "N/A values.")
+
+```
+There aren’t NA values.
+
+
+
+Now, it's time to change the sex and target columns for easy interpretation
+
+```{r }
+
+cardio$sex <- factor(cardio$sex, levels = c(0,1), labels = c("Female","Male"))
+
+
+
+```
+
+
+
+```{r }
+
+cardio_2 <-cardio
+
+cardio_2$target <- factor(cardio_2$target, levels = c(0,1), labels = c("No","Yes"))
+
+```
+
+
+In a nutshell, our data:
+```{r }
+summary(cardio)
+
+```
+
+
+Target variable indicates that our candidate is a target for disease or not. So lets look at this variable
+
+
+```{r }
+prop.table(table(cardio$target))
+
+```
+seems almost well balanced
+
+
+
+#Data Visualization
+
+```{r }
+corr_mat <- cor(cardio[,7:ncol(cardio)])
+
+corrplot(corr_mat, order = "hclust", tl.cex = 1, addrect = 8)
+
+```
+
+As we can see here, there is good correlation between some variables.
+
+
+
+Lets try another plotting type for our numeric variables to see outliers
+
+```{r }
+boxplot(cardio[,3:13])
+```
+
+
+And now, we can visualize the prediction ratio.
+
+```{r }
+ggplot(cardio, aes(x = target, fill = target)) +
+  geom_bar(position = 'dodge', color = 'black') +
+  ggtitle('Prediction analysis in statistical sample') +
+  xlab('Possibility of Cardiovasculer Disease') +
+  ylab('Total') +
+  theme_minimal() +
+  theme(legend.position = 'right') +
+  guides(fill = guide_legend(nrow = 2,byrow = TRUE)) +
+  scale_fill_discrete(name = " Cardiovasculer Diseases", labels = c("No", "Yes"))
+
+
+```
+
+
+See the above analysis in another point of view:
+
+```{r }
+ggplot(cardio, aes(x=cardio$target, fill=cardio$sex)) + 
+  geom_bar() +
+  xlab("Cardiovasculer Disease") +
+  ylab("Count") +
+  ggtitle("Analysis of possibility of cardiovasculer disease") +
+  scale_fill_discrete(name = "Heart Disease", labels = c("No", "Yes"))
+
+```
+
+
+Disturbution of female and male sex analysis. 
+
+```{r }
+
+x=table(cardio$sex)
+par(mfrow=c(1,2))
+barplot(x,
+        col=rainbow(2),
+        legend=rownames(x),
+        xlab="Female and Male",
+        ylab="Count",
+        main="Sex ")
+
+pct=round(x/sum(x)*100)
+lbs=paste(c("Female","Male")," ",pct,"%",sep=" ")
+pie(x,labels=lbs,main="Percentage of Male and Female")
+
+
+```
+
+
+```{r }
+
+range(cardio$age)
+
+hist(cardio$age,labels=TRUE,main=" Age Distrubution",xlab="Age Groups",ylab="Frequency",col="purple")
+
+
+```
+
+
+So here we can see male who are between 45-55 is more likely to get cardiovasculer disease. So males are tend to be get cardiovasculer diseases more then female
+
+```{r }
+
+cardio %>%
+  ggplot(aes(x=age,fill=sex)) +
+  geom_histogram(bins = 20) + 
+  xlab("Age") + 
+  ylab("Count")+
+  guides(fill = guide_legend(title = "Sex"))
+
+
+```
+
+
+Lets see more deeper analysis in some feature related to cardiovasuler diseases
+
+```{r }
+p1 <- cardio %>%
+  ggplot(aes(x=age,y=chol,color=sex, size=chol))+
+  geom_point(alpha=0.5)+xlab("Age") +
+  ylab("Cholesterol")+
+  ggtitle('Cholesterol in mg/dl in sex distribution') +
+  guides(fill = guide_legend(title = "Sex"))
+
+p2 <-cardio %>%
+  ggplot(aes(x=age,y=thalach,color=sex, size=thalach))+
+  geom_point(alpha=0.5)+xlab("Age") +
+  xlab("Age") +
+  ylab("Max. Heart Rate in sex distribution")+
+  guides(fill = guide_legend(title = "Sex"))
+
+
+
+p3 <-cardio %>%
+  ggplot(aes(x=age,y=cp,color=sex, size=cp))+
+  geom_point(alpha=0.5)+xlab("Age") +
+  xlab("Age") +
+  ylab("Chest Pain in sex distribution")+
+  guides(fill = guide_legend(title = "Sex"))
+
+
+p4 <-cardio %>%
+  ggplot(aes(x=age,y=exang,color=sex, size=exang))+
+  geom_point(alpha=0.5)+xlab("Age") +
+  xlab("Age") +
+  ylab("exercise induced angina in sex distribution")+
+  guides(fill = guide_legend(title = "Sex"))
+```
+
+
+```{r }
+grid.arrange(p1,p2, ncol=2)
+```
+
+```{r }
+grid.arrange(p3,p4,ncol=2)
+```
+
+
+
+#PCA - PRINCIPLE COMPONENT ANALYSIS
+
+
+While our dependent variable is Target which has 2 values : 0 and 1. 
+  * 0 means there is no heart attack 
+  * 1 means there is Heart Attack.
+  
+  
+  We are going to use this variable for our PCA analysis
+  
+  
+```{r }
+set.seed(1234)
+data_i <- createDataPartition(cardio$target, p=0.7, list = FALSE)
+traindata <- cardio[data_i, -1]
+testdata <- cardio[-data_i, -1]
+
+```
+
+```{r }
+pca_res <- prcomp(cardio[,3:ncol(cardio)], center = TRUE, scale = TRUE)
+plot(pca_res, type="l")
+
+```
+
+Lets see the results
+```{r }
+summary(pca_res)
+```
+
+We are going to pick first two  components which explains the 0.3514 of the variance. We need almost 11 components to explain around %96 of the variance.
+
+```{r }
+pca_data <- as.data.frame(pca_res$x)
+
+ggplot(pca_data, aes(x=PC1, y=PC2, col=cardio_2$target)) + geom_point(alpha=0.5) + labs(colour = "Is she/he a target?")
+
+```
+
+
+We can see here the density of the two components
+
+```{r }
+
+target <- cardio_2$target
+
+pc1 <- ggplot(pca_data, aes(x=PC1, fill=target)) + geom_density(alpha=0.5)  + ggtitle('Density in PC1')
+              
+pc2 <- ggplot(pca_data, aes(x=PC2, fill=target)) + geom_density(alpha=0.5)  + ggtitle('Density in PC2')
+
+grid.arrange(pc1, pc2, ncol=2)
+
+```
+## Referances
+
+ * https://www.datacamp.com/
+ * Principal Component Analysis in R Youtube by Hefin Rhys
+ * kaggle
+ * https://stackoverflow.com/
+
+
